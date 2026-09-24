@@ -27,3 +27,6 @@ jobs:
 
       - name: Build firmware
         run: pio run -d firmware
+
+      - name: Build logo filesystem
+        run: pio run -d firmware -t buildfs
