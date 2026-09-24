@@ -112,7 +112,8 @@ static MilitaryCallsignMatch matchAustralianMilitaryCallsign(const FlightInfo &f
     };
 
     static const Rule rules[] = {
-        {"BLKT", "RAAF", "P-8A POSEIDON"},   // BLACKCAT
+        {"BLACKCAT", "RAAF", "P-8A POSEIDON"}, // BLACKCAT full tactical callsign
+        {"BLKT", "RAAF", "P-8A POSEIDON"},     // BLACKCAT abbreviated ADS-B ident
         {"DRGN", "RAAF", "KC-30A MRTT"},     // DRAGON
         {"WNSR", "RAAF", "KC-30A MRTT"},     // WINDSOR
         {"DNGO", "RAAF", "KING AIR 350"},    // DINGO
