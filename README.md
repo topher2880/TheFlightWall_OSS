@@ -24,7 +24,11 @@ If FlightAware cannot enrich a detected aircraft, the target is **not discarded*
 
 ### RAAF / military fallback
 
-Some military flights expose limited public metadata even though their ADS-B position is visible. The firmware recognises Royal Australian Air Force flights using the ICAO operator/callsign prefix `ASY` and displays them explicitly as **RAAF**.
+Some military flights expose limited public metadata even though their ADS-B position is visible. The firmware recognises a curated set of Australian military operator and tactical callsigns and displays them explicitly as **RAAF** when a high-confidence match is available.
+
+Current recognised examples include `ASY` (AUSSIE), `BLKT` (BLACKCAT / P-8A), `DRGN` (DRAGON / KC-30A), `WNSR` (WINDSOR / KC-30A), `DNGO` (DINGO / King Air), `EVY` (ENVOY), `DGTL`, `WGTL`, `OBAK`, `STAL`, and `WLBY`.
+
+The matcher deliberately avoids very broad prefixes such as `BLK`, because similar tactical callsigns can be used by other military operators.
 
 For a sparse RAAF record the wall can show something like:
 
@@ -34,7 +38,7 @@ YPAD>YAMB
 C-17A
 ```
 
-If route or aircraft metadata is unavailable, useful labels such as `MILITARY FLIGHT` are shown instead of leaving the card effectively anonymous.
+If route or aircraft metadata is unavailable, useful labels such as `MILITARY FLIGHT` are shown instead of leaving the card effectively anonymous. When only one end of the route is known, the wall shows `FROM <airport>` or `TO <airport>` rather than a dangling route arrow. For several well-known tactical callsigns, a conservative aircraft hint is also available as a fallback.
 
 The fallback design is intentionally independent of FlightRadar24 filtering; OpenSky supplies the nearby ADS-B target and FlightAware remains the primary enrichment source.
 
