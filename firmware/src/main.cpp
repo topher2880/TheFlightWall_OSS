@@ -16,6 +16,7 @@ Configuration: UserConfiguration (location/filters/colors), TimingConfiguration 
 #include "adapters/OpenSkyFetcher.h"
 #include "adapters/AeroAPIFetcher.h"
 #include "core/FlightDataFetcher.h"
+#include "core/LogoManager.h"
 #include "adapters/NeoMatrixDisplay.h"
 
 static OpenSkyFetcher g_openSky;
@@ -29,6 +30,10 @@ void setup()
 {
     Serial.begin(115200);
     delay(200);
+
+    // Airline logos live in the PlatformIO data/ filesystem image. Failure to
+    // mount LittleFS is non-fatal; the wall simply falls back to text-only cards.
+    LogoManager::init();
 
     g_display.initialize();
     g_display.displayMessage(String("FlightWall"));
