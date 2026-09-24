@@ -2,11 +2,10 @@
 Purpose: Render flight info on a WS2812B NeoPixel matrix via FastLED_NeoMatrix.
 Responsibilities:
 - Initialize LED matrix based on HardwareConfiguration and user display settings.
-- Render a bordered, three-line flight “card” and a minimal loading screen.
+- Render a bordered, three-line flight card and a minimal loading screen.
+- Preserve and prominently show flight identifiers.
+- Provide useful fallback labels for sparse ADS-B/AeroAPI records, including RAAF.
 - Cycle through multiple flights at a configurable interval.
-Inputs: FlightInfo list; UserConfiguration (colors/brightness), TimingConfiguration (cycle),
-        HardwareConfiguration (dimensions/pin/tiling).
-Outputs: Visual output to LED matrix using FastLED.
 */
 #include "adapters/NeoMatrixDisplay.h"
 
@@ -70,31 +69,70 @@ void NeoMatrixDisplay::clear()
     }
 }
 
+static String bestIdent(const FlightInfo &f)
+{
+    if (f.ident_iata.length())
+        return f.ident_iata;
+    if (f.ident.length())
+        return f.ident;
+    if (f.ident_icao.length())
+        return f.ident_icao;
+    return f.adsb_callsign;
+}
+
+static bool isRAAFFlight(const FlightInfo &f)
+{
+    String ident = bestIdent(f);
+    ident.trim();
+    ident.toUpperCase();
+
+    String opIcao = f.operator_icao;
+    opIcao.trim();
+    opIcao.toUpperCase();
+
+    // RAAF uses the ICAO telephony/operator code ASY ("Aussie").
+    return ident.startsWith("ASY") || opIcao == "ASY";
+}
+
+static String bestAirline(const FlightInfo &f)
+{
+    if (isRAAFFlight(f))
+        return String("RAAF");
+
+    if (f.airline_display_name_full.length())
+        return f.airline_display_name_full;
+    if (f.operator_iata.length())
+        return f.operator_iata;
+    if (f.operator_icao.length())
+        return f.operator_icao;
+    if (f.operator_code.length())
+        return f.operator_code;
+
+    return f.enriched ? String("FLIGHT") : String("ADS-B");
+}
+
 String NeoMatrixDisplay::makeFlightLine(const FlightInfo &f)
 {
-    String airline = f.airline_display_name_full.length() ? f.airline_display_name_full
-                                                          : (f.operator_iata.length() ? f.operator_iata : f.operator_icao);
-    if (airline.length() == 0)
-    {
-        airline = f.operator_code;
-    }
+    String airline = bestAirline(f);
+    String ident = bestIdent(f);
     String origin = f.origin.code_icao;
     String dest = f.destination.code_icao;
     String route = origin + "-" + dest;
     String type = f.aircraft_display_name_short.length() ? f.aircraft_display_name_short : f.aircraft_code;
-    String ident = f.ident.length() ? f.ident : f.ident_icao;
-    String line = airline;
-    if (ident.length())
+
+    String line = ident;
+    if (airline.length())
     {
-        line += " ";
-        line += ident;
+        if (line.length())
+            line += " ";
+        line += airline;
     }
     if (type.length())
     {
         line += " ";
         line += type;
     }
-    if (route.length() > 1)
+    if ((origin.length() || dest.length()) && route.length() > 1)
     {
         line += " ";
         line += route;
@@ -123,35 +161,82 @@ String NeoMatrixDisplay::truncateToColumns(const String &text, int maxColumns)
 
 void NeoMatrixDisplay::displaySingleFlightCard(const FlightInfo &f)
 {
-    // Border
     const uint16_t borderColor = _matrix->Color(UserConfiguration::TEXT_COLOR_R,
                                                 UserConfiguration::TEXT_COLOR_G,
                                                 UserConfiguration::TEXT_COLOR_B);
     _matrix->drawRect(0, 0, _matrixWidth, _matrixHeight, borderColor);
 
-    // Calculate columns for 6x8 default font (5x7 glyphs + 1px spacing)
     const int charWidth = 6;
     const int charHeight = 8;
-    const int padding = 2;                                   // Small padding from border
-    const int innerWidth = _matrixWidth - 2 - (2 * padding); // Account for border and padding
+    const int padding = 2;
+    const int innerWidth = _matrixWidth - 2 - (2 * padding);
     const int innerHeight = _matrixHeight - 2 - (2 * padding);
     const int maxCols = innerWidth / charWidth;
 
-    // Lines per display:
-    // 1: airline
-    // 2: route
-    // 3: aircraft
+    const String ident = bestIdent(f);
+    const String airline = bestAirline(f);
+    const bool raaf = isRAAFFlight(f);
 
-    String airline = f.airline_display_name_full.length() ? f.airline_display_name_full
-                                                          : (f.operator_iata.length() ? f.operator_iata : (f.operator_icao.length() ? f.operator_icao : f.operator_code));
+    // Keep the flight identifier at the front so long airline names cannot
+    // truncate away the most useful bit of information.
+    String line1;
+    if (raaf)
+    {
+        line1 = String("RAAF");
+        if (ident.length())
+        {
+            line1 += " ";
+            line1 += ident;
+        }
+    }
+    else
+    {
+        line1 = ident;
+        if (airline.length())
+        {
+            if (line1.length())
+                line1 += " ";
+            line1 += airline;
+        }
+    }
 
     String origin = f.origin.code_icao;
     String dest = f.destination.code_icao;
-    String line2 = origin + String(">") + dest;
+    String line2;
+
+    if (origin.length() || dest.length())
+    {
+        if (origin.length())
+            line2 += origin;
+        line2 += ">";
+        if (dest.length())
+            line2 += dest;
+    }
+    else if (raaf)
+    {
+        line2 = "MILITARY FLIGHT";
+    }
+    else if (!f.enriched)
+    {
+        line2 = "LIVE ADS-B";
+    }
+    else
+    {
+        line2 = "ROUTE UNKNOWN";
+    }
 
     String line3 = f.aircraft_display_name_short.length() ? f.aircraft_display_name_short : f.aircraft_code;
+    if (line3.length() == 0)
+    {
+        if (raaf)
+            line3 = "ROYAL AUSTRALIAN AIR FORCE";
+        else if (!f.enriched)
+            line3 = "UNENRICHED TARGET";
+        else
+            line3 = "AIRCRAFT UNKNOWN";
+    }
 
-    String line1 = truncateToColumns(airline, maxCols);
+    line1 = truncateToColumns(line1, maxCols);
     line2 = truncateToColumns(line2, maxCols);
     line3 = truncateToColumns(line3, maxCols);
 
@@ -159,10 +244,10 @@ void NeoMatrixDisplay::displaySingleFlightCard(const FlightInfo &f)
                                               UserConfiguration::TEXT_COLOR_G,
                                               UserConfiguration::TEXT_COLOR_B);
     const int lineCount = 3;
-    const int lineSpacing = 1; // 1px spacing between lines
+    const int lineSpacing = 1;
     const int totalTextHeight = lineCount * charHeight + (lineCount - 1) * lineSpacing;
-    const int topOffset = 1 + padding + (innerHeight - totalTextHeight) / 2; // center inside border with padding
-    const int16_t startX = 1 + padding;                                      // left padding inside border
+    const int topOffset = 1 + padding + (innerHeight - totalTextHeight) / 2;
+    const int16_t startX = 1 + padding;
 
     int16_t y = topOffset;
     drawTextLine(startX, y, line1, textColor);
@@ -248,7 +333,6 @@ void NeoMatrixDisplay::displayMessage(const String &message)
                                               UserConfiguration::TEXT_COLOR_G,
                                               UserConfiguration::TEXT_COLOR_B);
 
-    // Simple single-line message; truncate if needed
     const int innerWidth = _matrixWidth;
     const int maxCols = innerWidth / charWidth;
     String line = truncateToColumns(message, maxCols);
