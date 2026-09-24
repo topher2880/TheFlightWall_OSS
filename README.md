@@ -11,7 +11,7 @@ This repository contains the open-source firmware and build information for a 20
 For each nearby aircraft, the wall tries to show three useful lines:
 
 1. **Flight identifier + operator** — for example `SQ212 Singapore Airlines`, `FD212 RFDS`, or `RAAF ASY123`
-2. **Route** — for example `YSSY>WSSS`
+2. **Route** — friendly airport city names when AeroAPI supplies them, for example `SYDNEY>SINGAPORE`, with IATA/ICAO codes as fallbacks
 3. **Aircraft type** — using a friendly aircraft name when available
 
 The display uses the full available width of the 160 x 32 matrix before truncating long text.
@@ -38,7 +38,7 @@ YPAD>YAMB
 C-17A
 ```
 
-If route or aircraft metadata is unavailable, useful labels such as `MILITARY FLIGHT` are shown instead of leaving the card effectively anonymous. When only one end of the route is known, the wall shows `FROM <airport>` or `TO <airport>` rather than a dangling route arrow. For several well-known tactical callsigns, a conservative aircraft hint is also available as a fallback.
+If route or aircraft metadata is unavailable, useful labels such as `MILITARY FLIGHT` are shown instead of leaving the card effectively anonymous. Airport labels prefer AeroAPI's city field (for example `ADELAIDE`, `DENPASAR`, or `HONG KONG`), then airport name, IATA code, and finally ICAO code. When only one end of the route is known, the wall shows `FROM <airport>` or `TO <airport>` rather than a dangling route arrow. For several well-known tactical callsigns, a conservative aircraft hint is also available as a fallback.
 
 The fallback design is intentionally independent of FlightRadar24 filtering; OpenSky supplies the nearby ADS-B target and FlightAware remains the primary enrichment source.
 
