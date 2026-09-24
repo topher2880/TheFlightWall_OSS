@@ -80,7 +80,14 @@ static String bestIdent(const FlightInfo &f)
     return f.adsb_callsign;
 }
 
-static bool isRAAFFlight(const FlightInfo &f)
+struct MilitaryCallsignMatch
+{
+    bool matched = false;
+    String service;
+    String aircraftHint;
+};
+
+static MilitaryCallsignMatch matchAustralianMilitaryCallsign(const FlightInfo &f)
 {
     String ident = bestIdent(f);
     ident.trim();
@@ -90,14 +97,58 @@ static bool isRAAFFlight(const FlightInfo &f)
     opIcao.trim();
     opIcao.toUpperCase();
 
-    // RAAF uses the ICAO telephony/operator code ASY ("Aussie").
-    return ident.startsWith("ASY") || opIcao == "ASY";
+    // ASY is the RAAF operator/telephony code ("Aussie").
+    if (opIcao == "ASY" || ident.startsWith("ASY"))
+        return {true, "RAAF", ""};
+
+    // Common Australian military tactical/mission callsigns. These are
+    // intentionally kept as a small, high-confidence table and can grow as
+    // more locally observed callsigns are confirmed.
+    struct Rule
+    {
+        const char *prefix;
+        const char *service;
+        const char *aircraftHint;
+    };
+
+    static const Rule rules[] = {
+        {"BLKT", "RAAF", "P-8A POSEIDON"},   // BLACKCAT
+        {"DRGN", "RAAF", "KC-30A MRTT"},     // DRAGON
+        {"WNSR", "RAAF", "KC-30A MRTT"},     // WINDSOR
+        {"DNGO", "RAAF", "KING AIR 350"},    // DINGO
+        {"EVY",  "RAAF", "VIP"},             // ENVOY
+        {"DGTL", "RAAF", "E-7A WEDGETAIL"},  // DOGTAIL
+        {"WGTL", "RAAF", "E-7A WEDGETAIL"},  // WEDGETAIL
+        {"OBAK", "RAAF", "E-7A WEDGETAIL"},  // OUTBACK
+        {"STAL", "RAAF", "C-17A"},           // STALLION
+        {"WLBY", "RAAF", "C-27J"},           // WALLABY
+        {"ARCH", "RAAF", "C-130J"},          // ARCHER
+        {"ACHR", "RAAF", "C-130J"},          // ARCHER alt
+        {"ARRW", "RAAF", "C-130J"},          // ARROW
+        {"ATLS", "RAAF", ""},                // ATLAS
+        {"PACR", "RAAF", "C-17A"},           // PACER
+    };
+
+    for (const Rule &rule : rules)
+    {
+        if (ident.startsWith(rule.prefix))
+            return {true, String(rule.service), String(rule.aircraftHint)};
+    }
+
+    return {};
+}
+
+static bool isRAAFFlight(const FlightInfo &f)
+{
+    MilitaryCallsignMatch match = matchAustralianMilitaryCallsign(f);
+    return match.matched && match.service == "RAAF";
 }
 
 static String bestAirline(const FlightInfo &f)
 {
-    if (isRAAFFlight(f))
-        return String("RAAF");
+    MilitaryCallsignMatch military = matchAustralianMilitaryCallsign(f);
+    if (military.matched)
+        return military.service;
 
     if (f.airline_display_name_full.length())
         return f.airline_display_name_full;
@@ -175,7 +226,8 @@ void NeoMatrixDisplay::displaySingleFlightCard(const FlightInfo &f)
 
     const String ident = bestIdent(f);
     const String airline = bestAirline(f);
-    const bool raaf = isRAAFFlight(f);
+    const MilitaryCallsignMatch military = matchAustralianMilitaryCallsign(f);
+    const bool raaf = military.matched && military.service == "RAAF";
 
     // Keep the flight identifier at the front so long airline names cannot
     // truncate away the most useful bit of information.
@@ -204,15 +256,19 @@ void NeoMatrixDisplay::displaySingleFlightCard(const FlightInfo &f)
     String dest = f.destination.code_icao;
     String line2;
 
-    if (origin.length() || dest.length())
+    if (origin.length() && dest.length())
     {
-        if (origin.length())
-            line2 += origin;
-        line2 += ">";
-        if (dest.length())
-            line2 += dest;
+        line2 = origin + ">" + dest;
     }
-    else if (raaf)
+    else if (origin.length())
+    {
+        line2 = String("FROM ") + origin;
+    }
+    else if (dest.length())
+    {
+        line2 = String("TO ") + dest;
+    }
+    else if (military.matched)
     {
         line2 = "MILITARY FLIGHT";
     }
@@ -226,6 +282,10 @@ void NeoMatrixDisplay::displaySingleFlightCard(const FlightInfo &f)
     }
 
     String line3 = f.aircraft_display_name_short.length() ? f.aircraft_display_name_short : f.aircraft_code;
+    if (line3.length() == 0 && military.aircraftHint.length())
+    {
+        line3 = military.aircraftHint;
+    }
     if (line3.length() == 0)
     {
         if (raaf)
