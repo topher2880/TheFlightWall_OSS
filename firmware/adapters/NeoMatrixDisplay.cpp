@@ -145,6 +145,23 @@ static bool isRAAFFlight(const FlightInfo &f)
     return match.matched && match.service == "RAAF";
 }
 
+static String bestAirportLabel(const AirportInfo &airport)
+{
+    String label;
+    if (airport.city.length())
+        label = airport.city;
+    else if (airport.name.length())
+        label = airport.name;
+    else if (airport.code_iata.length())
+        label = airport.code_iata;
+    else
+        label = airport.code_icao;
+
+    label.trim();
+    label.toUpperCase();
+    return label;
+}
+
 static String bestAirline(const FlightInfo &f)
 {
     MilitaryCallsignMatch military = matchAustralianMilitaryCallsign(f);
@@ -167,8 +184,8 @@ String NeoMatrixDisplay::makeFlightLine(const FlightInfo &f)
 {
     String airline = bestAirline(f);
     String ident = bestIdent(f);
-    String origin = f.origin.code_icao;
-    String dest = f.destination.code_icao;
+    String origin = bestAirportLabel(f.origin);
+    String dest = bestAirportLabel(f.destination);
     String route = origin + "-" + dest;
     String type = f.aircraft_display_name_short.length() ? f.aircraft_display_name_short : f.aircraft_code;
 
@@ -253,8 +270,8 @@ void NeoMatrixDisplay::displaySingleFlightCard(const FlightInfo &f)
         }
     }
 
-    String origin = f.origin.code_icao;
-    String dest = f.destination.code_icao;
+    String origin = bestAirportLabel(f.origin);
+    String dest = bestAirportLabel(f.destination);
     String line2;
 
     if (origin.length() && dest.length())
