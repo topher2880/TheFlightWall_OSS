@@ -15,6 +15,7 @@ Responsibilities:
 #include "config/UserConfiguration.h"
 #include "config/HardwareConfiguration.h"
 #include "config/TimingConfiguration.h"
+#include "core/LogoManager.h"
 
 NeoMatrixDisplay::NeoMatrixDisplay() {}
 
@@ -82,9 +83,14 @@ static String bestIdent(const FlightInfo &f)
 
 struct MilitaryCallsignMatch
 {
-    bool matched = false;
+    bool matched;
     String service;
     String aircraftHint;
+
+    MilitaryCallsignMatch(bool isMatched = false,
+                          const String &serviceName = String(""),
+                          const String &aircraft = String(""))
+        : matched(isMatched), service(serviceName), aircraftHint(aircraft) {}
 };
 
 static MilitaryCallsignMatch matchAustralianMilitaryCallsign(const FlightInfo &f)
@@ -99,7 +105,7 @@ static MilitaryCallsignMatch matchAustralianMilitaryCallsign(const FlightInfo &f
 
     // ASY is the RAAF operator/telephony code ("Aussie").
     if (opIcao == "ASY" || ident.startsWith("ASY"))
-        return {true, "RAAF", ""};
+        return MilitaryCallsignMatch(true, "RAAF", "");
 
     // Common Australian military tactical/mission callsigns. These are
     // intentionally kept as a small, high-confidence table and can grow as
@@ -133,10 +139,10 @@ static MilitaryCallsignMatch matchAustralianMilitaryCallsign(const FlightInfo &f
     for (const Rule &rule : rules)
     {
         if (ident.startsWith(rule.prefix))
-            return {true, String(rule.service), String(rule.aircraftHint)};
+            return MilitaryCallsignMatch(true, String(rule.service), String(rule.aircraftHint));
     }
 
-    return {};
+    return MilitaryCallsignMatch();
 }
 
 static bool isRAAFFlight(const FlightInfo &f)
@@ -219,6 +225,30 @@ void NeoMatrixDisplay::drawTextLine(int16_t x, int16_t y, const String &text, ui
     }
 }
 
+bool NeoMatrixDisplay::drawAirlineLogo(const FlightInfo &f)
+{
+    String operatorIcao = f.operator_icao;
+    if (operatorIcao.length() == 0)
+        operatorIcao = f.operator_code;
+
+    if (!LogoManager::loadLogo(operatorIcao, _logoBuffer))
+        return false;
+
+    // Donor logo assets are 32x32 RGB565. Pixel value 0 is treated as
+    // transparent so the black display background remains untouched.
+    for (uint16_t y = 0; y < LOGO_HEIGHT && y < _matrixHeight; ++y)
+    {
+        for (uint16_t x = 0; x < LOGO_WIDTH && x < _matrixWidth; ++x)
+        {
+            const uint16_t pixel = _logoBuffer[y * LOGO_WIDTH + x];
+            if (pixel != 0)
+                _matrix->drawPixel(x, y, pixel);
+        }
+    }
+
+    return true;
+}
+
 String NeoMatrixDisplay::truncateToColumns(const String &text, int maxColumns)
 {
     if ((int)text.length() <= maxColumns)
@@ -238,14 +268,20 @@ void NeoMatrixDisplay::displaySingleFlightCard(const FlightInfo &f)
     const int charWidth = 6;
     const int charHeight = 8;
     const int padding = 2;
-    const int innerWidth = _matrixWidth - 2 - (2 * padding);
-    const int innerHeight = _matrixHeight - 2 - (2 * padding);
-    const int maxCols = innerWidth / charWidth;
 
     const String ident = bestIdent(f);
     const String airline = bestAirline(f);
     const MilitaryCallsignMatch military = matchAustralianMilitaryCallsign(f);
     const bool raaf = military.matched && military.service == "RAAF";
+
+    // A 32x32 logo gets the full left-most panel. Text automatically moves
+    // right and uses the remaining 128 pixels. Military/GA/missing-logo cards
+    // continue to use the full width.
+    const bool logoVisible = !military.matched && drawAirlineLogo(f);
+    const int16_t startX = logoVisible ? (LOGO_WIDTH + 2) : (1 + padding);
+    const int innerWidth = _matrixWidth - startX - 2;
+    const int innerHeight = _matrixHeight - 2 - (2 * padding);
+    const int maxCols = innerWidth / charWidth;
 
     // Keep the flight identifier at the front so long airline names cannot
     // truncate away the most useful bit of information.
@@ -325,7 +361,6 @@ void NeoMatrixDisplay::displaySingleFlightCard(const FlightInfo &f)
     const int lineSpacing = 1;
     const int totalTextHeight = lineCount * charHeight + (lineCount - 1) * lineSpacing;
     const int topOffset = 1 + padding + (innerHeight - totalTextHeight) / 2;
-    const int16_t startX = 1 + padding;
 
     int16_t y = topOffset;
     drawTextLine(startX, y, line1, textColor);
