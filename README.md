@@ -14,7 +14,9 @@ For each nearby aircraft, the wall tries to show three useful lines:
 2. **Route** — friendly airport city names when AeroAPI supplies them, for example `SYDNEY>SINGAPORE`, with IATA/ICAO codes as fallbacks
 3. **Aircraft type** — using a friendly aircraft name when available
 
-The display uses the full available width of the 160 x 32 matrix before truncating long text.
+When a matching airline logo is available, a 32x32 RGB565 logo occupies the left-most panel and the three text lines use the remaining 128 pixels. Flights without a logo (including military and most GA traffic) continue to use the full display width.
+
+The display uses the available width before truncating long text.
 
 ### ADS-B fallback
 
@@ -151,7 +153,10 @@ Brightness and text colour can be changed in [UserConfiguration.h](firmware/conf
    - location/display preferences in `config/UserConfiguration.h`
    - matrix hardware in `config/HardwareConfiguration.h`
 5. Connect the ESP32 over USB.
-6. Build and upload from PlatformIO.
+6. Upload the LittleFS logo image with `pio run -d firmware -t uploadfs` (or PlatformIO's **Upload Filesystem Image** task).
+7. Build and upload the firmware with `pio run -d firmware -t upload` (or the normal PlatformIO **Upload** button).
+
+The logo filesystem only needs to be re-uploaded when logo assets change; ordinary firmware-only changes can use the normal upload step.
 
 ## Display behaviour notes
 
@@ -165,6 +170,14 @@ Identifier preference is:
 4. Original OpenSky ADS-B callsign
 
 That makes commercial flight numbers more readable while still preserving unusual, GA, RFDS and military callsigns.
+
+### Airline logo assets
+
+The initial logo library is adapted from the public `biohead/TheFlightWall_OSS` and `LuckierTrout/TheFlightWall_OSS-main` forks. Their FlightWall code is published under Apache-2.0. Airline names and logos remain trademarks of their respective owners.
+
+The current bundled set prioritises airlines likely to appear around Australia and common international overflight routes, including Qantas, Jetstar, Virgin Australia, Air New Zealand, Fiji Airways, Singapore Airlines, Qatar Airways, Emirates, Cathay Pacific, Vietnam Airlines, Scoot, Malaysia Airlines, Thai Airways, Philippine Airlines, Batik Air, JAL, ANA, Korean Air and major Chinese carriers.
+
+Missing logos are non-fatal: the wall simply renders the normal full-width text card.
 
 ## Original project
 
