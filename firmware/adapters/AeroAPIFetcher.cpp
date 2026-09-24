@@ -75,12 +75,18 @@ bool AeroAPIFetcher::fetchFlightInfo(const String &flightIdent, FlightInfo &outI
     {
         JsonObject o = f["origin"].as<JsonObject>();
         outInfo.origin.code_icao = safeGetString(o, "code_icao");
+        outInfo.origin.code_iata = safeGetString(o, "code_iata");
+        outInfo.origin.name = safeGetString(o, "name");
+        outInfo.origin.city = safeGetString(o, "city");
     }
 
     if (f.containsKey("destination") && f["destination"].is<JsonObject>())
     {
         JsonObject d = f["destination"].as<JsonObject>();
         outInfo.destination.code_icao = safeGetString(d, "code_icao");
+        outInfo.destination.code_iata = safeGetString(d, "code_iata");
+        outInfo.destination.name = safeGetString(d, "name");
+        outInfo.destination.city = safeGetString(d, "city");
     }
 
     return true;

@@ -11,6 +11,14 @@ struct FlightInfo
     String ident_icao;
     String ident_iata;
 
+    // Raw ADS-B callsign from the state vector. This is retained even when
+    // the metadata provider cannot enrich the flight.
+    String adsb_callsign;
+
+    // True when detailed metadata was returned by the flight information
+    // provider (for example FlightAware AeroAPI).
+    bool enriched = false;
+
     // Operator
     String operator_code;
     String operator_icao;

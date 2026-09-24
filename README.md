@@ -1,117 +1,186 @@
 # TheFlightWall
 
-TheFlightWall is an LED wall which shows live information of flights going by your window.
+TheFlightWall is an ESP32-powered LED wall that shows live information about aircraft flying near you.
 
-This is the open source version with some basic guides to the panels, mounting them together, data services, and code. Check out our viral build video: [https://www.instagram.com/p/DLIbAtbJxPl](https://www.instagram.com/p/DLIbAtbJxPl)
-
-**Don't feel like building one? Check out the offical product: [theflightwall.com](https://theflightwall.com)**
+This repository contains the open-source firmware and build information for a 20-panel (10 x 2) WS2812B matrix display. The firmware combines nearby ADS-B state vectors from OpenSky with FlightAware AeroAPI enrichment for flight number, route, operator and aircraft information.
 
 ![Main Image](images/main-image.png)
-*Airline logo lookup will be added soon!*
 
-# Component List
-- Main components
-    - 20x [16x16 LED panels](https://www.aliexpress.us/item/2255800358269772.html)
-    - ESP32 dev board (we used the [R32 D1](https://www.amazon.com/HiLetgo-ESP-32-Development-Bluetooth-Arduino/dp/B07WFZCBH8) but any ESP dev board should work)
-    - 3D printed brackets (or MDF / cardboard)
-    - 2x 6ft wooden trim pieces (for support)
-- Power
-    - [5V >20A power supply](https://www.amazon.com/dp/B07KC55TJF) (for 20 panels)
-    - [3.3V - 5V voltage level shifter](https://www.amazon.com/dp/B07F7W91LC)
-- Data
-    - [OpenSky](https://opensky-network.org/) for ADS-B flight data
-    - [FlightAware AeroAPI](https://www.flightaware.com/commercial/aeroapi/) for route, aircraft, and airline information
+## What it shows
 
-# Hardware
+For each nearby aircraft, the wall tries to show three useful lines:
 
-## Dimensions
+1. **Flight identifier + operator** — for example `SQ212 Singapore Airlines`, `FD212 RFDS`, or `RAAF ASY123`
+2. **Route** — friendly airport city names when AeroAPI supplies them, for example `SYDNEY>SINGAPORE`, with IATA/ICAO codes as fallbacks
+3. **Aircraft type** — using a friendly aircraft name when available
 
-With 20 panels (10x2) - ~63 inches x ~12.6 inches
+When a matching airline logo is available, a 32x32 RGB565 logo occupies the left-most panel and the three text lines use the remaining 128 pixels. Flights without a logo (including military and most GA traffic) continue to use the full display width.
 
-## LED Panels
-[These are the LED panels we used](https://www.aliexpress.us/item/2255800358269772.html), but any similar LED matrix should work.
+The display uses the available width before truncating long text.
 
-We designed 3D printable brackets to attach the panels together, this is one approach, but you could also use MDF board or even cardboard (as we did originally haha)
+### ADS-B fallback
 
-Then two 63 inch horizontal supports for extra strength. We bought wooden floor trim and cut it to size.
+OpenSky is the source of truth for whether an aircraft is physically nearby.
+
+If FlightAware cannot enrich a detected aircraft, the target is **not discarded**. The wall keeps the original ADS-B callsign and shows an ADS-B fallback card. This is useful for GA aircraft, unusual callsigns, and flights where metadata is unavailable.
+
+### RAAF / military fallback
+
+Some military flights expose limited public metadata even though their ADS-B position is visible. The firmware recognises a curated set of Australian military operator and tactical callsigns and displays them explicitly as **RAAF** when a high-confidence match is available.
+
+Current recognised examples include `ASY` (AUSSIE), `BLKT` (BLACKCAT / P-8A), `DRGN` (DRAGON / KC-30A), `WNSR` (WINDSOR / KC-30A), `DNGO` (DINGO / King Air), `EVY` (ENVOY), `DGTL`, `WGTL`, `OBAK`, `STAL`, and `WLBY`.
+
+The matcher deliberately avoids very broad prefixes such as `BLK`, because similar tactical callsigns can be used by other military operators.
+
+For a sparse RAAF record the wall can show something like:
+
+```
+RAAF ASY123
+YPAD>YAMB
+C-17A
+```
+
+If route or aircraft metadata is unavailable, useful labels such as `MILITARY FLIGHT` are shown instead of leaving the card effectively anonymous. Airport labels prefer AeroAPI's city field (for example `ADELAIDE`, `DENPASAR`, or `HONG KONG`), then airport name, IATA code, and finally ICAO code. When only one end of the route is known, the wall shows `FROM <airport>` or `TO <airport>` rather than a dangling route arrow. For several well-known tactical callsigns, a conservative aircraft hint is also available as a fallback.
+
+The fallback design is intentionally independent of FlightRadar24 filtering; OpenSky supplies the nearby ADS-B target and FlightAware remains the primary enrichment source.
+
+## Component List
+
+### Main components
+
+- 20x [16x16 LED panels](https://www.aliexpress.us/item/2255800358269772.html)
+- ESP32 development board (the original build used an [R32 D1](https://www.amazon.com/HiLetgo-ESP-32-Development-Bluetooth-Arduino/dp/B07WFZCBH8), but a suitable ESP32 board should work)
+- 3D printed brackets, MDF, or another backing/mounting system
+- Two horizontal support pieces
+
+### Power
+
+- [5V >20A power supply](https://www.amazon.com/dp/B07KC55TJF) for a 20-panel build
+- [3.3V to 5V level shifter](https://www.amazon.com/dp/B07F7W91LC)
+
+### Data
+
+- [OpenSky](https://opensky-network.org/) for nearby ADS-B state vectors and callsigns
+- [FlightAware AeroAPI](https://www.flightaware.com/commercial/aeroapi/) for enrichment such as route, operator, flight identifier and aircraft
+- FlightWall CDN lookups for friendly airline and aircraft names
+
+## Hardware
+
+### Dimensions
+
+With 20 panels arranged 10 x 2, the matrix is 160 x 32 pixels and approximately 63 inches x 12.6 inches with the original panels.
+
+### LED Panels
+
+[These are the LED panels used by the original project](https://www.aliexpress.us/item/2255800358269772.html), but similar WS2812B matrix tiles can be adapted.
+
+3D printable brackets can attach the panels together, or the tiles can be mounted to MDF or another suitable backing.
 
 ![LED Panel Wiring and Brackets](images/led-panel-wiring-and-brackets.jpg)
 
-Obviously this is just one way to hold them together, but we're sure there are better ways!
-
-## Wiring
-
-Here is a wiring diagram for how to connect the whole system together.
+### Wiring
 
 ![Wiring Diagram](images/wiring-diagram.png)
 
-The entire panel is controlled by one data line - simple electronics in exchange for very low refresh rates, don't expect any 60 FPS gaming on this panel!
+The entire panel is controlled by one data line. That keeps the electronics simple, although it is not intended to be a high-frame-rate display.
 
-# Data and Software
+## Data and Software
 
-## Data API Keys
+### Data flow
 
-The data for this project consists of two main data sources:
-1. Core public [ADS-B](https://en.wikipedia.org/wiki/Automatic_Dependent_Surveillance%E2%80%93Broadcast) data for flight positions and callsigns - using [OpenSky](https://opensky-network.org)
-2. Flight information lookup - aircraft, airline, and route (origin/destination airport). This is typically the hardest / most expensive information to find. Using [FlightAware AeroAPI](https://flightaware.com/aeroapi)
+The firmware follows this sequence:
 
-### Setting up OpenSky
-1. Register for an [OpenSky](https://opensky-network.org/) account
-2. Go to your [account page](https://opensky-network.org/my-opensky/account)
-3. Create a new API client and copy the `client_id` and `client_secret` to the [APIConfiguration.h](firmware/config/APIConfiguration.h) file
+1. Query OpenSky for aircraft within the configured radius.
+2. Preserve every usable ADS-B callsign as a displayable target.
+3. Query FlightAware AeroAPI for richer flight metadata.
+4. Look up friendly airline and aircraft names when identifiers are available.
+5. Render either the enriched flight card or a useful fallback card.
 
+This means a metadata/API miss no longer causes an otherwise valid nearby aircraft to disappear from the wall.
 
-### Setting up AeroAPI
-1. Go to the [FlightAware AeroAPI]([https://flightaware.com/aeroapi](https://flightaware.com/aeroapi)) page and create a personal account
-3. From the dashboard, open **API Keys**, click **Create API Key** and follow the steps
-8. Copy the generated key and add it to [APIConfiguration.h](firmware/config/APIConfiguration.h)
+## API Keys
 
+### OpenSky
 
-## Software Setup
+1. Register for an [OpenSky](https://opensky-network.org/) account.
+2. Open your OpenSky account page.
+3. Create an API client.
+4. Add the `client_id` and `client_secret` to [APIConfiguration.h](firmware/config/APIConfiguration.h).
 
-### Set your WiFi
+### FlightAware AeroAPI
 
-Enter your WiFi credentials into `WIFI_SSID` and `WIFI_PASSWORD` in [WiFiConfiguration.h](firmware/config/WiFiConfiguration.h)
+1. Create a FlightAware AeroAPI account.
+2. Create an API key from the AeroAPI dashboard.
+3. Add the key to [APIConfiguration.h](firmware/config/APIConfiguration.h).
 
-### Set your location
+Do not commit real API keys or Wi-Fi credentials to a public repository.
 
-Set your location to track flights by updating the following values in [UserConfiguration.h](firmware/config/UserConfiguration.h):
+## Configuration
 
-- `CENTER_LAT`: Latitude of the center point to track (e.g., your home or city)
-- `CENTER_LON`: Longitude of the center point
-- `RADIUS_KM`: Search radius in kilometers for flights to include
+### Wi-Fi
 
-### Build and flash with PlatformIO
+Enter your Wi-Fi credentials into `WIFI_SSID` and `WIFI_PASSWORD` in [WiFiConfiguration.h](firmware/config/WiFiConfiguration.h).
 
-The firmware can be built and uploaded to the ESP32 using [PlatformIO](https://platformio.org/)
+### Location
 
-1. **Install PlatformIO**: 
-   - Install [VS Code](https://code.visualstudio.com/)
-   - Add the [PlatformIO IDE extension](https://platformio.org/install/ide?install=vscode)
+Set the centre point and tracking radius in [UserConfiguration.h](firmware/config/UserConfiguration.h):
 
-2. **Configure your settings**:
-   - Add your API keys to [APIConfiguration.h](firmware/config/APIConfiguration.h)
-   - Add your WiFi credentials to [WiFiConfiguration.h](firmware/config/WiFiConfiguration.h)
-   - Set your location (and optional display preferences) in [UserConfiguration.h](firmware/config/UserConfiguration.h)
-   - Adjust display hardware (pin, tile layout) in [HardwareConfiguration.h](firmware/config/HardwareConfiguration.h)
+- `CENTER_LAT`
+- `CENTER_LON`
+- `RADIUS_KM`
 
-3. **Build and upload**:
-   - Open the `firmware` folder in PlatformIO
-   - Connect your ESP32 via USB
-   - Click the "Upload" button (→) in the PlatformIO toolbar
+### Display
 
-### Customization
+Display hardware settings are in [HardwareConfiguration.h](firmware/config/HardwareConfiguration.h).
 
-- **Brightness**: Controls overall display brightness (0–255)
-  - Edit `DISPLAY_BRIGHTNESS` in [UserConfiguration.h](firmware/config/UserConfiguration.h)
-- **Text color**: RGB values used for all text/borders
-  - Edit `TEXT_COLOR_R`, `TEXT_COLOR_G`, `TEXT_COLOR_B` in [UserConfiguration.h](firmware/config/UserConfiguration.h)
+The default layout is:
 
-We may add more customization options in the future, but of course this being open source the whole thing is customizable to your liking.
+- 16 x 16 pixels per tile
+- 10 tiles horizontally
+- 2 tiles vertically
+- 160 x 32 pixels total
 
-# Thanks
-We really appreciate all the support on this project!
+Brightness and text colour can be changed in [UserConfiguration.h](firmware/config/UserConfiguration.h).
 
-If you don't want to build one but still find it cool, check out our offical displays: **[https://theflightwall.com](https://theflightwall.com)**
+## Build and Flash with PlatformIO
 
-Excited to see your builds :) Tag @theflightwall on IG
+1. Install [VS Code](https://code.visualstudio.com/).
+2. Install the [PlatformIO IDE extension](https://platformio.org/install/ide?install=vscode).
+3. Open the `firmware` folder in PlatformIO.
+4. Configure:
+   - API credentials in `config/APIConfiguration.h`
+   - Wi-Fi in `config/WiFiConfiguration.h`
+   - location/display preferences in `config/UserConfiguration.h`
+   - matrix hardware in `config/HardwareConfiguration.h`
+5. Connect the ESP32 over USB.
+6. Upload the LittleFS logo image with `pio run -d firmware -t uploadfs` (or PlatformIO's **Upload Filesystem Image** task).
+7. Build and upload the firmware with `pio run -d firmware -t upload` (or the normal PlatformIO **Upload** button).
+
+The logo filesystem only needs to be re-uploaded when logo assets change; ordinary firmware-only changes can use the normal upload step.
+
+## Display behaviour notes
+
+Flight identifiers are deliberately placed at the **front** of the first line so a long operator name cannot truncate away the most useful identifier.
+
+Identifier preference is:
+
+1. IATA identifier when available
+2. FlightAware primary ident
+3. ICAO identifier
+4. Original OpenSky ADS-B callsign
+
+That makes commercial flight numbers more readable while still preserving unusual, GA, RFDS and military callsigns.
+
+### Airline logo assets
+
+The initial logo library is adapted from the public `biohead/TheFlightWall_OSS` and `LuckierTrout/TheFlightWall_OSS-main` forks. Their FlightWall code is published under Apache-2.0. Airline names and logos remain trademarks of their respective owners.
+
+The current bundled set prioritises airlines likely to appear around Australia and common international overflight routes, including Qantas, Jetstar, Virgin Australia, Air New Zealand, Fiji Airways, Singapore Airlines, Qatar Airways, Emirates, Cathay Pacific, Vietnam Airlines, Scoot, Malaysia Airlines, Thai Airways, Philippine Airlines, Batik Air, JAL, ANA, Korean Air and major Chinese carriers.
+
+Missing logos are non-fatal: the wall simply renders the normal full-width text card.
+
+## Original project
+
+The original FlightWall project and commercial displays can be found at [theflightwall.com](https://theflightwall.com).
+
+This repository is intended for people building and modifying their own FlightWall-style display.
