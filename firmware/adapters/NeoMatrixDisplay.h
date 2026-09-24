@@ -2,10 +2,10 @@
 
 #include <stdint.h>
 #include <vector>
+#include <FastLED.h>
 #include "interfaces/BaseDisplay.h"
 
 class FastLED_NeoMatrix;
-struct CRGB;
 
 class NeoMatrixDisplay : public BaseDisplay
 {
