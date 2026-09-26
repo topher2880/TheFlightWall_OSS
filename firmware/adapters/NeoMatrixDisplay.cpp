@@ -388,7 +388,14 @@ void NeoMatrixDisplay::displaySingleFlightCard(const FlightInfo &f)
 
     String telemetry = liveTelemetryLine(f);
     const int telemetryWidth = telemetry.length() * charWidth;
-    const int availableAircraftPixels = innerWidth - telemetryWidth - (telemetry.length() ? charWidth : 0);
+
+    // Line 3 uses the full physical display width.  The aircraft type begins at
+    // the normal text start (after a logo, when present), while telemetry is
+    // pinned to the far-right edge.  Do not calculate the aircraft allowance
+    // from innerWidth: innerWidth already excludes the logo and caused compact
+    // types such as A21N/A388 to be truncated to one character or nothing.
+    const int16_t telemetryX = _matrixWidth - 2 - telemetryWidth;
+    const int availableAircraftPixels = telemetryX - startX - charWidth;
     const int aircraftCols = availableAircraftPixels > 0 ? availableAircraftPixels / charWidth : 0;
 
     line1 = truncateToColumns(line1, maxCols);
@@ -412,7 +419,6 @@ void NeoMatrixDisplay::displaySingleFlightCard(const FlightInfo &f)
         drawTextLine(startX, y, aircraftType, textColor);
     if (telemetry.length())
     {
-        const int16_t telemetryX = _matrixWidth - 2 - telemetryWidth;
         drawTextLine(telemetryX, y, telemetry, textColor);
     }
 }
