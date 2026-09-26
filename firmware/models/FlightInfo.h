@@ -31,6 +31,12 @@ struct FlightInfo
     // Aircraft
     String aircraft_code;
 
+    // Live ADS-B telemetry copied from the matching OpenSky state vector.
+    // Altitude is metres from OpenSky; display code converts it to feet.
+    double distance_km = NAN;
+    double baro_altitude_m = NAN;
+    double heading_deg = NAN;
+
     // Human-friendly display strings
     String airline_display_name_full;
     String aircraft_display_name_short;
