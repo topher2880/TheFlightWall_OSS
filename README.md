@@ -12,9 +12,13 @@ For each nearby aircraft, the wall tries to show three useful lines:
 
 1. **Flight identifier + operator** — for example `SQ212 Singapore Airlines`, `FD212 RFDS`, or `RAAF ASY123`
 2. **Route** — friendly airport city names when AeroAPI supplies them, for example `SYDNEY>SINGAPORE`, with IATA/ICAO codes as fallbacks
-3. **Aircraft type** — using a friendly aircraft name when available
+3. **Aircraft type + live telemetry** — compact ICAO aircraft type (for example `A332`, `A21N`, `B38M` or `PA32`) on the left, with barometric altitude and distance from the configured centre point on the right
 
 When a matching airline logo is available, a 32x32 RGB565 logo occupies the left-most panel and the three text lines use the remaining 128 pixels. Flights without a logo (including military and most GA traffic) continue to use the full display width.
+
+Nearby aircraft are sorted nearest-first. The aircraft list is refreshed from the APIs on its normal fetch cadence while the display cycles independently through cached flights, so changing cards does not create extra API calls. The current default card cycle is 10 seconds.
+
+Heading is retained in the flight data model but is deliberately not rendered on the compact card; aircraft type, altitude and distance proved more useful on the 160x32 display.
 
 The display uses the available width before truncating long text.
 
@@ -94,7 +98,9 @@ The firmware follows this sequence:
 2. Preserve every usable ADS-B callsign as a displayable target.
 3. Query FlightAware AeroAPI for richer flight metadata.
 4. Look up friendly airline and aircraft names when identifiers are available.
-5. Render either the enriched flight card or a useful fallback card.
+5. Calculate distance from the configured centre point and retain live ADS-B telemetry.
+6. Sort nearby aircraft nearest-first.
+7. Render either the enriched flight card or a useful fallback card.
 
 This means a metadata/API miss no longer causes an otherwise valid nearby aircraft to disappear from the wall.
 
@@ -177,7 +183,26 @@ The initial logo library is adapted from the public `biohead/TheFlightWall_OSS` 
 
 The current bundled set prioritises airlines likely to appear around Australia and common international overflight routes, including Qantas, Jetstar, Virgin Australia, Air New Zealand, Fiji Airways, Singapore Airlines, Qatar Airways, Emirates, Cathay Pacific, Vietnam Airlines, Scoot, Malaysia Airlines, Thai Airways, Philippine Airlines, Batik Air, JAL, ANA, Korean Air and major Chinese carriers.
 
-Missing logos are non-fatal: the wall simply renders the normal full-width text card.
+Logos are looked up by **operator ICAO code**, not the passenger-facing IATA flight prefix. For example, a China Eastern flight displayed as `MU852` is associated with operator ICAO `CES`, so its logo file is:
+
+```
+firmware/data/logos/CES.bin
+```
+
+Each logo file must be exactly **32x32 pixels in RGB565 format**: 1024 pixels / 2048 bytes. Pixel value `0` is treated as transparent by the renderer.
+
+To add a logo:
+
+1. Identify the airline's three-letter ICAO operator code from the live serial output / enriched flight record.
+2. Check whether `firmware/data/logos/<ICAO>.bin` already exists.
+3. Obtain a clean, appropriately licensed logo source. Prefer official airline brand assets where available; the airline owns its trademark.
+4. Prepare a simple 32x32 version that remains recognisable at LED resolution, then convert it to the same RGB565 binary format as the existing assets.
+5. Name it exactly `<ICAO>.bin` using uppercase ICAO letters and place it in `firmware/data/logos/`.
+6. Rebuild and upload LittleFS with `pio run -d firmware -t uploadfs`.
+
+Missing logos are non-fatal: the wall simply renders the normal full-width text card. This also makes live testing useful: whenever a flight appears without a logo, note its operator ICAO code and add it to the logo wish-list rather than changing display logic.
+
+A practical way to grow the collection is to concentrate on airlines actually observed within the configured tracking radius. That keeps LittleFS small and avoids maintaining hundreds of logos that will never appear on the wall.
 
 ## Original project
 
