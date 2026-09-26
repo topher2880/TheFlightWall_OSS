@@ -376,7 +376,11 @@ void NeoMatrixDisplay::displaySingleFlightCard(const FlightInfo &f)
     // Third line: aircraft type left-aligned, live telemetry right-aligned.
     // The two fields are drawn independently so the telemetry stays pinned to
     // the right edge rather than moving around with aircraft-name length.
-    String aircraftType = f.aircraft_display_name_short.length() ? f.aircraft_display_name_short : f.aircraft_code;
+    // Prefer the compact ICAO aircraft type designator (A359, B38M, PA32)
+    // so line 3 leaves maximum room for altitude, heading and distance.
+    String aircraftType = f.aircraft_code;
+    if (aircraftType.length() == 0 && f.aircraft_display_name_short.length())
+        aircraftType = f.aircraft_display_name_short;
     if (aircraftType.length() == 0 && military.aircraftHint.length())
         aircraftType = military.aircraftHint;
     if (aircraftType.length() == 0)
