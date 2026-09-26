@@ -25,6 +25,8 @@ static FlightDataFetcher *g_fetcher = nullptr;
 static NeoMatrixDisplay g_display;
 
 static unsigned long g_lastFetchMs = 0;
+static unsigned long g_lastDisplayMs = 0;
+static std::vector<FlightInfo> g_currentFlights;
 
 void setup()
 {
@@ -127,7 +129,20 @@ void loop()
             Serial.println("===================");
         }
 
-        g_display.displayFlights(flights);
+        // Replace the cached snapshot after each network refresh. Rendering is
+        // intentionally decoupled from fetching so aircraft can cycle every
+        // DISPLAY_CYCLE_SECONDS instead of only changing every fetch interval.
+        g_currentFlights = flights;
+        g_display.displayFlights(g_currentFlights);
+        g_lastDisplayMs = now;
     }
+
+    const unsigned long displayIntervalMs = TimingConfiguration::DISPLAY_CYCLE_SECONDS * 1000UL;
+    if (!g_currentFlights.empty() && now - g_lastDisplayMs >= displayIntervalMs)
+    {
+        g_lastDisplayMs = now;
+        g_display.displayFlights(g_currentFlights);
+    }
+
     delay(10);
 }
