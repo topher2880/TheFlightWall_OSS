@@ -273,12 +273,9 @@ static String liveTelemetryLine(const FlightInfo &f)
 {
     String line;
 
-    if (!isnan(f.distance_km))
-        line += String((int)round(f.distance_km)) + "KM";
-
+    // Right-aligned telemetry order: altitude, heading, distance.
     if (!isnan(f.baro_altitude_m))
     {
-        if (line.length()) line += " ";
         const long altitudeFt = lround(f.baro_altitude_m * 3.28084);
         line += String(altitudeFt) + "FT";
     }
@@ -288,6 +285,12 @@ static String liveTelemetryLine(const FlightInfo &f)
     {
         if (line.length()) line += " ";
         line += heading;
+    }
+
+    if (!isnan(f.distance_km))
+    {
+        if (line.length()) line += " ";
+        line += String((int)round(f.distance_km)) + "KM";
     }
 
     return line;
