@@ -258,6 +258,41 @@ String NeoMatrixDisplay::truncateToColumns(const String &text, int maxColumns)
     return text.substring(0, maxColumns - 3) + String("...");
 }
 
+static String compassHeading(double degrees)
+{
+    if (isnan(degrees))
+        return String("");
+
+    static const char *directions[] = {"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
+    int index = (int)floor((degrees + 22.5) / 45.0) % 8;
+    int rounded = ((int)round(degrees) % 360 + 360) % 360;
+    return String(directions[index]) + String(rounded);
+}
+
+static String liveTelemetryLine(const FlightInfo &f)
+{
+    String line;
+
+    if (!isnan(f.distance_km))
+        line += String((int)round(f.distance_km)) + "KM";
+
+    if (!isnan(f.baro_altitude_m))
+    {
+        if (line.length()) line += " ";
+        const long altitudeFt = lround(f.baro_altitude_m * 3.28084);
+        line += String(altitudeFt) + "FT";
+    }
+
+    String heading = compassHeading(f.heading_deg);
+    if (heading.length())
+    {
+        if (line.length()) line += " ";
+        line += heading;
+    }
+
+    return line;
+}
+
 void NeoMatrixDisplay::displaySingleFlightCard(const FlightInfo &f)
 {
     const uint16_t borderColor = _matrix->Color(UserConfiguration::TEXT_COLOR_R,
@@ -335,19 +370,16 @@ void NeoMatrixDisplay::displaySingleFlightCard(const FlightInfo &f)
         line2 = "ROUTE UNKNOWN";
     }
 
-    String line3 = f.aircraft_display_name_short.length() ? f.aircraft_display_name_short : f.aircraft_code;
-    if (line3.length() == 0 && military.aircraftHint.length())
-    {
-        line3 = military.aircraftHint;
-    }
+    // Live telemetry gets the third line. This is deliberately compact so it
+    // remains readable even when a 32x32 airline logo reduces text width.
+    String line3 = liveTelemetryLine(f);
     if (line3.length() == 0)
     {
-        if (raaf)
-            line3 = "ROYAL AUSTRALIAN AIR FORCE";
-        else if (!f.enriched)
-            line3 = "UNENRICHED TARGET";
-        else
-            line3 = "AIRCRAFT UNKNOWN";
+        line3 = f.aircraft_display_name_short.length() ? f.aircraft_display_name_short : f.aircraft_code;
+        if (line3.length() == 0 && military.aircraftHint.length())
+            line3 = military.aircraftHint;
+        if (line3.length() == 0)
+            line3 = "TELEMETRY UNKNOWN";
     }
 
     line1 = truncateToColumns(line1, maxCols);
