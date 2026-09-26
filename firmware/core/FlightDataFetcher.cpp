@@ -12,6 +12,7 @@ from the wall.
 #include "core/FlightDataFetcher.h"
 #include "config/UserConfiguration.h"
 #include "adapters/FlightWallFetcher.h"
+#include <algorithm>
 
 FlightDataFetcher::FlightDataFetcher(BaseStateVectorFetcher *stateFetcher,
                                      BaseFlightFetcher *flightFetcher)
@@ -31,6 +32,12 @@ size_t FlightDataFetcher::fetchFlights(std::vector<StateVector> &outStates,
     if (!ok)
         return 0;
 
+    // Nearest aircraft first so the wall always leads with the target closest
+    // to the configured centre point (YBHI in Topher's configuration).
+    std::sort(outStates.begin(), outStates.end(), [](const StateVector &a, const StateVector &b) {
+        return a.distance_km < b.distance_km;
+    });
+
     size_t enriched = 0;
     for (const StateVector &s : outStates)
     {
@@ -42,6 +49,9 @@ size_t FlightDataFetcher::fetchFlights(std::vector<StateVector> &outStates,
         FlightInfo info;
         info.adsb_callsign = s.callsign;
         info.ident = s.callsign; // Always keep a usable identifier for display.
+        info.distance_km = s.distance_km;
+        info.baro_altitude_m = s.baro_altitude;
+        info.heading_deg = s.heading;
 
         if (_flightFetcher->fetchFlightInfo(s.callsign, info))
         {
