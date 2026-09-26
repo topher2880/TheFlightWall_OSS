@@ -273,19 +273,15 @@ static String liveTelemetryLine(const FlightInfo &f)
 {
     String line;
 
-    // Right-aligned telemetry order: altitude, heading, distance.
+    // Right-aligned telemetry order: altitude, distance.
+    // Heading remains available in FlightInfo but is intentionally omitted
+    // from the compact display card to leave room for the aircraft type.
     if (!isnan(f.baro_altitude_m))
     {
         const long altitudeFt = lround(f.baro_altitude_m * 3.28084);
         line += String(altitudeFt) + "FT";
     }
 
-    String heading = compassHeading(f.heading_deg);
-    if (heading.length())
-    {
-        if (line.length()) line += " ";
-        line += heading;
-    }
 
     if (!isnan(f.distance_km))
     {
@@ -377,7 +373,7 @@ void NeoMatrixDisplay::displaySingleFlightCard(const FlightInfo &f)
     // The two fields are drawn independently so the telemetry stays pinned to
     // the right edge rather than moving around with aircraft-name length.
     // Prefer the compact ICAO aircraft type designator (A359, B38M, PA32)
-    // so line 3 leaves maximum room for altitude, heading and distance.
+    // so line 3 leaves maximum room for altitude and distance.
     String aircraftType = f.aircraft_code;
     if (aircraftType.length() == 0 && f.aircraft_display_name_short.length())
         aircraftType = f.aircraft_display_name_short;
