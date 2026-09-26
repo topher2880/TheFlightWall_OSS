@@ -370,21 +370,23 @@ void NeoMatrixDisplay::displaySingleFlightCard(const FlightInfo &f)
         line2 = "ROUTE UNKNOWN";
     }
 
-    // Live telemetry gets the third line. This is deliberately compact so it
-    // remains readable even when a 32x32 airline logo reduces text width.
-    String line3 = liveTelemetryLine(f);
-    if (line3.length() == 0)
-    {
-        line3 = f.aircraft_display_name_short.length() ? f.aircraft_display_name_short : f.aircraft_code;
-        if (line3.length() == 0 && military.aircraftHint.length())
-            line3 = military.aircraftHint;
-        if (line3.length() == 0)
-            line3 = "TELEMETRY UNKNOWN";
-    }
+    // Third line: aircraft type left-aligned, live telemetry right-aligned.
+    // The two fields are drawn independently so the telemetry stays pinned to
+    // the right edge rather than moving around with aircraft-name length.
+    String aircraftType = f.aircraft_display_name_short.length() ? f.aircraft_display_name_short : f.aircraft_code;
+    if (aircraftType.length() == 0 && military.aircraftHint.length())
+        aircraftType = military.aircraftHint;
+    if (aircraftType.length() == 0)
+        aircraftType = "AIRCRAFT ?";
+
+    String telemetry = liveTelemetryLine(f);
+    const int telemetryWidth = telemetry.length() * charWidth;
+    const int availableAircraftPixels = innerWidth - telemetryWidth - (telemetry.length() ? charWidth : 0);
+    const int aircraftCols = availableAircraftPixels > 0 ? availableAircraftPixels / charWidth : 0;
 
     line1 = truncateToColumns(line1, maxCols);
     line2 = truncateToColumns(line2, maxCols);
-    line3 = truncateToColumns(line3, maxCols);
+    aircraftType = truncateToColumns(aircraftType, aircraftCols);
 
     const uint16_t textColor = _matrix->Color(UserConfiguration::TEXT_COLOR_R,
                                               UserConfiguration::TEXT_COLOR_G,
@@ -399,7 +401,13 @@ void NeoMatrixDisplay::displaySingleFlightCard(const FlightInfo &f)
     y += charHeight + lineSpacing;
     drawTextLine(startX, y, line2, textColor);
     y += charHeight + lineSpacing;
-    drawTextLine(startX, y, line3, textColor);
+    if (aircraftType.length())
+        drawTextLine(startX, y, aircraftType, textColor);
+    if (telemetry.length())
+    {
+        const int16_t telemetryX = _matrixWidth - 2 - telemetryWidth;
+        drawTextLine(telemetryX, y, telemetry, textColor);
+    }
 }
 
 void NeoMatrixDisplay::displayFlights(const std::vector<FlightInfo> &flights)
